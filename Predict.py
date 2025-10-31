@@ -533,9 +533,9 @@ class KDPredictorGUI:
         result_text += f"""
 {'='*60}
 💡 INTERPRÉTATION:
-   • KD entre -1 et 1 indique une affinité équilibrée
-   • Les valeurs négatives favorisent la phase aqueuse
-   • Les valeurs positives favorisent la phase organique
+   • Log KD between -1 et 1 indicates a good partitioning
+   • Negative values indicate a preference for the aqueous phase
+   • Positive values indicate a preference for the organic phase
 
 🎯 RECOMMANDATIONS:
    • Système le plus bas: {results[0]['solvent']} + {results[0]['composition']} (KD = {results[0]['kd']:.4f})
@@ -554,18 +554,18 @@ class KDPredictorGUI:
 ❌ ERREUR DE SCAN - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 {'='*60}
 
-Impossible d'effectuer le scan complet.
+Can't compute the complete search.
 
 {error_msg}
 
-Vérifiez que:
-• Le SMILES est valide
-• Le modèle est correctement chargé
-• Les fichiers de données sont accessibles
+Verify that:
+• SMILES is valid
+• Model is correctly loaded
+• The file are accessible
 {'='*60}
 """
         self.display_in_results(error_text)
-        messagebox.showerror("Erreur", "Impossible d'effectuer le scan complet")
+        messagebox.showerror("Error", "Cannot perform the search for optimal compositions")
     
     def display_in_results(self, text, highlight_text="", highlight_color="#000000"):
         """Affiche du texte dans la zone de résultats"""
@@ -585,8 +585,8 @@ Vérifiez que:
     
     def reset_buttons(self):
         """Réactive les boutons"""
-        self.predict_button.config(state='normal', text="🎯 Prédiction Simple", bg='#27ae60')
-        self.scan_button.config(state='normal', text="🔍 Scan Complet (-1 < KD < 1)", bg='#8e44ad')
+        self.predict_button.config(state='normal', text="🎯 Prediction for selected system and composition", bg='#27ae60')
+        self.scan_button.config(state='normal', text="🔍 Search optimal compositions for CPC (-1 < log KD < 1)", bg='#8e44ad')
     
     def reset_interface(self):
         """Réinitialise l'interface"""
