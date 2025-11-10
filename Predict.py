@@ -15,7 +15,7 @@ class KDPredictorGUI:
     def __init__(self, root):
         self.root = root
         self.root.title("🧪 KD Prediction - UI")
-        self.root.geometry("900x750")
+        self.root.geometry("1400x800")
         self.root.configure(bg='#f0f0f0')
         
         # Initialisation du prédicteur
@@ -39,7 +39,7 @@ class KDPredictorGUI:
         
         title_label = tk.Label(
             title_frame,
-            text="🧪 Prediction of partitioning coefficient (KD)",
+            text="🧪 Prediction of partitioning coefficient (log KD)",
             font=('Arial', 16, 'bold'),
             fg='white',
             bg='#2c3e50'
@@ -440,14 +440,14 @@ class KDPredictorGUI:
         
         result_text = f"""
 {'='*60}
-🧪 PRÉDICTION TERMINÉE - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+🧪 PREDICTION ENDED - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 {'='*60}
 
-🔬 MOLÉCULE:
+🔬 MOLECULE:
    SMILES: {smiles}
 
-💧 SYSTÈME:
-   Solvant: {solvent}
+💧 System:
+   Solvent system: {solvent}
    Composition: {composition}
 
 📊 Results:
@@ -456,7 +456,7 @@ class KDPredictorGUI:
 💡 Interpretation:
    {interpretation}
 
-📈 PLAGE DE KD:
+📈 LOG KD RANGE:
    < -1.0 : Affinity with aqueous phase
    -1.0 - 1.0 : Good with partitioning
    > 1.0 : Affinity with organic phase
@@ -475,7 +475,7 @@ class KDPredictorGUI:
 🔍 Search for optimal system ended - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 {'='*60}
 
-🔬 MOLÉCULE:
+🔬 MOLECULE:
    SMILES: {smiles}
 
 📊 Results of search:
@@ -538,14 +538,14 @@ class KDPredictorGUI:
    • Positive values indicate a preference for the organic phase
 
 🎯 RECOMMANDATIONS:
-   • Système le plus bas: {results[0]['solvent']} + {results[0]['composition']} (KD = {results[0]['kd']:.4f})
+   • Lower system: {results[0]['solvent']} + {results[0]['composition']} (KD = {results[0]['kd']:.4f})
    • Système le plus haut: {results[-1]['solvent']} + {results[-1]['composition']} (KD = {results[-1]['kd']:.4f})
 
 {'='*60}
 """
         
         self.display_in_results(result_text)
-        self.update_status_bar(f"Scan terminé - {valid_combinations} systèmes trouvés avec -1 < KD < 1")
+        self.update_status_bar(f"Search finished - {valid_combinations} systems found with -1 < log KD < 1")
     
     def display_scan_error(self, error_msg=""):
         """Affiche une erreur de scan"""
