@@ -6,16 +6,19 @@ import tensorflow as tf
 from tensorflow.keras.models import Model
 from sklearn.preprocessing import StandardScaler, LabelEncoder
 from rdkit import Chem
-from rdkit.Chem import AllChem
+from rdkit.Chem import AllChem, Draw
+from rdkit.Chem.Draw import rdMolDraw2D
+from PIL import Image, ImageTk
 import joblib
 import threading
 from datetime import datetime
+import io
 
 class KDPredictorGUI:
     def __init__(self, root):
         self.root = root
         self.root.title("🧪 KD Prediction - UI")
-        self.root.geometry("1400x800")
+        self.root.geometry("1600x900")
         self.root.configure(bg='#f0f0f0')
         
         # Initialisation du prédicteur
@@ -26,6 +29,10 @@ class KDPredictorGUI:
         self.solvent_var = tk.StringVar()
         self.composition_var = tk.StringVar()
         self.smiles_var = tk.StringVar()
+        
+        # Variable pour l'image de la molécule
+        self.molecule_image = None
+        self.current_smiles = ""
         
         self.setup_ui()
         self.load_model_async()
@@ -46,12 +53,89 @@ class KDPredictorGUI:
         )
         title_label.pack(expand=True)
         
-        # Frame principale
-        main_frame = tk.Frame(self.root, bg='#f0f0f0')
-        main_frame.pack(fill='both', expand=True, padx=20, pady=10)
+        # Conteneur principal avec deux colonnes
+        main_container = tk.Frame(self.root, bg='#f0f0f0')
+        main_container.pack(fill='both', expand=True, padx=20, pady=10)
+        
+        # Colonne de gauche pour la structure moléculaire
+        left_column = tk.Frame(main_container, bg='#f0f0f0', width=400)
+        left_column.pack(side='left', fill='both', expand=False, padx=(0, 20))
+        
+        # Colonne de droite pour les contrôles et résultats
+        right_column = tk.Frame(main_container, bg='#f0f0f0')
+        right_column.pack(side='right', fill='both', expand=True)
+        
+        # ========== COLONNE GAUCHE: STRUCTURE MOLÉCULAIRE ==========
+        mol_frame = tk.LabelFrame(
+            left_column,
+            text=" Molecular Structure ",
+            font=('Arial', 12, 'bold'),
+            bg='#f0f0f0',
+            padx=10,
+            pady=10
+        )
+        mol_frame.pack(fill='both', expand=True)
+        
+        # Canvas pour afficher la structure
+        self.mol_canvas = tk.Canvas(
+            mol_frame,
+            bg='white',
+            relief='solid',
+            bd=2,
+            width=380,
+            height=380
+        )
+        self.mol_canvas.pack(fill='both', expand=True, pady=10)
+        
+        # Label pour les informations de la molécule
+        self.mol_info_label = tk.Label(
+            mol_frame,
+            text="Enter SMILES to display structure",
+            font=('Arial', 10),
+            bg='#f0f0f0',
+            wraplength=350
+        )
+        self.mol_info_label.pack(fill='x', pady=(0, 5))
+        
+        # Bouton pour actualiser l'affichage
+        refresh_btn = tk.Button(
+            mol_frame,
+            text="🔄 Update Structure",
+            command=self.update_structure_display,
+            font=('Arial', 10),
+            bg='#3498db',
+            fg='white',
+            relief='raised',
+            bd=2
+        )
+        refresh_btn.pack(fill='x', pady=5)
+        
+        # Informations supplémentaires sur la molécule
+        info_frame = tk.Frame(mol_frame, bg='#f0f0f0')
+        info_frame.pack(fill='x', pady=5)
+        
+        self.mol_weight_label = tk.Label(
+            info_frame,
+            text="Molecular Weight: -",
+            font=('Arial', 9),
+            bg='#f0f0f0',
+            anchor='w'
+        )
+        self.mol_weight_label.pack(fill='x')
+        
+        self.mol_formula_label = tk.Label(
+            info_frame,
+            text="Formula: -",
+            font=('Arial', 9),
+            bg='#f0f0f0',
+            anchor='w'
+        )
+        self.mol_formula_label.pack(fill='x')
+        
+        # ========== COLONNE DROITE: CONTRÔLES ET RÉSULTATS ==========
         
         # Status du modèle
-        self.status_frame = tk.Frame(main_frame, bg='#f0f0f0')
+        self.status_frame = tk.Frame(right_column, bg='#f0f0f0')
         self.status_frame.pack(fill='x', pady=(0, 20))
         
         self.status_label = tk.Label(
@@ -65,7 +149,7 @@ class KDPredictorGUI:
         
         # Frame de configuration
         config_frame = tk.LabelFrame(
-            main_frame,
+            right_column,
             text=" System configuration ",
             font=('Arial', 12, 'bold'),
             bg='#f0f0f0',
@@ -126,16 +210,32 @@ class KDPredictorGUI:
             bg='#f0f0f0'
         ).pack(anchor='w')
         
+        smiles_input_frame = tk.Frame(smiles_frame, bg='#f0f0f0')
+        smiles_input_frame.pack(fill='x')
+        
         self.smiles_entry = tk.Entry(
-            smiles_frame,
+            smiles_input_frame,
             textvariable=self.smiles_var,
-            width=50,
+            width=40,
             font=('Arial', 10),
             relief='solid',
             bd=1
         )
-        self.smiles_entry.pack(fill='x', pady=5)
-        self.smiles_entry.bind('<KeyRelease>', self.validate_smiles)
+        self.smiles_entry.pack(side='left', fill='x', expand=True, pady=5)
+        
+        # Bouton de validation rapide du SMILES
+        self.validate_smiles_btn = tk.Button(
+            smiles_input_frame,
+            text="✓ Validate",
+            command=self.validate_and_display_smiles,
+            font=('Arial', 9),
+            bg='#2ecc71',
+            fg='white',
+            relief='raised',
+            bd=1,
+            width=10
+        )
+        self.validate_smiles_btn.pack(side='left', padx=(5, 0), pady=5)
         
         self.smiles_status = tk.Label(
             smiles_frame,
@@ -168,7 +268,7 @@ class KDPredictorGUI:
         # Bouton de scan complet
         self.scan_button = tk.Button(
             button_frame,
-            text="🔍 Find suitable Log KD for CPC (-1 < KD < 1)",
+            text="🔍 Find suitable Log KD for CPC (-0.5 < KD < 0.5)",
             command=self.launch_complete_scan,
             font=('Arial', 10, 'bold'),
             bg='#9b59b6',
@@ -198,7 +298,7 @@ class KDPredictorGUI:
         
         # Zone de résultats
         results_frame = tk.LabelFrame(
-            main_frame,
+            right_column,
             text=" Prediction results ",
             font=('Arial', 12, 'bold'),
             bg='#f0f0f0',
@@ -211,7 +311,7 @@ class KDPredictorGUI:
             results_frame,
             wrap=tk.WORD,
             width=80,
-            height=12,
+            height=15,
             font=('Consolas', 9),
             relief='solid',
             bd=1
@@ -228,6 +328,116 @@ class KDPredictorGUI:
             font=('Arial', 9)
         )
         self.status_bar.pack(side='bottom', fill='x')
+    
+    def validate_and_display_smiles(self, event=None):
+        """Valide le SMILES et affiche la structure"""
+        self.validate_smiles()
+        self.update_structure_display()
+    
+    def validate_smiles(self, event=None):
+        """Valide le SMILES en temps réel"""
+        smiles = self.smiles_var.get().strip()
+        
+        if not smiles:
+            self.smiles_status.config(text="", fg='black')
+            return
+        
+        # Validation basique du SMILES
+        mol = Chem.MolFromSmiles(smiles)
+        if mol is None:
+            self.smiles_status.config(text="❌ Invalid SMILES", fg='red')
+            return False
+        else:
+            self.smiles_status.config(text="✅ Valid SMILES", fg='green')
+            self.current_smiles = smiles
+            return True
+    
+    def update_structure_display(self):
+        """Met à jour l'affichage de la structure moléculaire"""
+        smiles = self.smiles_var.get().strip()
+        
+        if not smiles:
+            # Afficher un message par défaut
+            self.mol_canvas.delete("all")
+            self.mol_canvas.create_text(190, 190, 
+                                       text="Enter SMILES to\ndisplay structure", 
+                                       font=('Arial', 12), 
+                                       fill='gray', 
+                                       justify='center')
+            self.mol_info_label.config(text="No molecule to display")
+            self.mol_weight_label.config(text="Molecular Weight: -")
+            self.mol_formula_label.config(text="Formula: -")
+            return
+        
+        # Valider le SMILES
+        mol = Chem.MolFromSmiles(smiles)
+        if mol is None:
+            self.mol_canvas.delete("all")
+            self.mol_canvas.create_text(190, 190, 
+                                       text="Invalid SMILES", 
+                                       font=('Arial', 12), 
+                                       fill='red', 
+                                       justify='center')
+            self.mol_info_label.config(text=f"Invalid SMILES: {smiles}")
+            self.mol_weight_label.config(text="Molecular Weight: -")
+            self.mol_formula_label.config(text="Formula: -")
+            return
+        
+        try:
+            # Calculer les propriétés moléculaires
+            from rdkit.Chem import Descriptors
+            mol_weight = Descriptors.MolWt(mol)
+            formula = Chem.rdMolDescriptors.CalcMolFormula(mol)
+            
+            # Générer l'image de la molécule
+            drawer = rdMolDraw2D.MolDraw2DCairo(380, 380)
+            drawer.SetFontSize(0.8)
+            
+            # Options de dessin
+            opts = drawer.drawOptions()
+            opts.useBWAtomPalette()
+            
+            # Dessiner la molécule
+            drawer.DrawMolecule(mol)
+            drawer.FinishDrawing()
+            
+            # Convertir en image PIL
+            img_data = drawer.GetDrawingText()
+            img = Image.open(io.BytesIO(img_data))
+            
+            # Redimensionner pour s'adapter au canvas
+            img = img.resize((360, 360), Image.Resampling.LANCZOS)
+            
+            # Convertir en PhotoImage
+            self.molecule_image = ImageTk.PhotoImage(img)
+            
+            # Afficher sur le canvas
+            self.mol_canvas.delete("all")
+            self.mol_canvas.create_image(190, 190, image=self.molecule_image)
+            
+            # Mettre à jour les informations
+            self.mol_info_label.config(text=f"Molecule: {Chem.MolToSmiles(mol, isomericSmiles=False)[:50]}...")
+            self.mol_weight_label.config(text=f"Molecular Weight: {mol_weight:.2f} g/mol")
+            self.mol_formula_label.config(text=f"Formula: {formula}")
+            
+            # Calculer d'autres propriétés
+            num_atoms = mol.GetNumAtoms()
+            num_bonds = mol.GetNumBonds()
+            self.mol_info_label.config(
+                text=f"Atoms: {num_atoms} | Bonds: {num_bonds} | MW: {mol_weight:.1f}"
+            )
+            
+        except Exception as e:
+            # En cas d'erreur, afficher un message
+            self.mol_canvas.delete("all")
+            self.mol_canvas.create_text(190, 190, 
+                                       text="Error displaying\nmolecule", 
+                                       font=('Arial', 12), 
+                                       fill='red', 
+                                       justify='center')
+            self.mol_info_label.config(text=f"Error: {str(e)[:50]}...")
+            self.mol_weight_label.config(text="Molecular Weight: -")
+            self.mol_formula_label.config(text="Formula: -")
     
     def load_model_async(self):
         """Charge le modèle en arrière-plan"""
@@ -288,21 +498,6 @@ class KDPredictorGUI:
             
             self.update_status_bar(f"Solvent selected: {solvent} - {len(compositions)} compositions available")
     
-    def validate_smiles(self, event=None):
-        """Valide le SMILES en temps réel"""
-        smiles = self.smiles_var.get().strip()
-        
-        if not smiles:
-            self.smiles_status.config(text="", fg='black')
-            return
-        
-        # Validation basique du SMILES
-        mol = Chem.MolFromSmiles(smiles)
-        if mol is None:
-            self.smiles_status.config(text="❌ Invalid SMILES", fg='red')
-        else:
-            self.smiles_status.config(text="✅ Valid SMILES", fg='green')
-    
     def launch_prediction(self):
         """Lance la prédiction simple"""
         if not self.model_loaded:
@@ -356,7 +551,7 @@ class KDPredictorGUI:
             "Search for optimal system", 
             f"Do you wish to search for an optimal system for:\n{smiles}\n\n"
             f"Your compound will evaluated for all systems in every composition "
-            f"and will only display those for -1 < KD < 1.\n\n"
+            f"and will only display those for -0.5 < KD < 0.5.\n\n"
             f"This operation might take a while."
         )
         
@@ -407,7 +602,7 @@ class KDPredictorGUI:
                     # Faire la prédiction pour chaque combinaison
                     prediction = self.predictor.predict(smiles, solvent, composition)
                     
-                    if prediction is not None and -1 <= prediction <= 1:
+                    if prediction is not None and -0.5 <= prediction <= 0.5:
                         results.append({
                             'solvent': solvent,
                             'composition': composition,
@@ -428,15 +623,15 @@ class KDPredictorGUI:
     def display_prediction_result(self, smiles, solvent, composition, prediction):
         """Affiche le résultat de la prédiction simple"""
         # Interprétation
-        if prediction < -1:
+        if prediction < -0.5:
             interpretation = "Affinity with aqueous phase"
             color = "#e74c3c"
-        elif prediction < 1:
+        elif prediction < 0.5:
             interpretation = "Optimal partitioning"
-            color = "#f39c12"
+            color = "#000fff000"
         else:
             interpretation = "Affinity with organic phase" 
-            color = "#27ae60"
+            color = "#e74c3c"
         
         result_text = f"""
 {'='*60}
@@ -457,9 +652,9 @@ class KDPredictorGUI:
    {interpretation}
 
 📈 LOG KD RANGE:
-   < -1.0 : Affinity with aqueous phase
-   -1.0 - 1.0 : Good with partitioning
-   > 1.0 : Affinity with organic phase
+   < -0.5 : Affinity with aqueous phase
+   -0.5 - 0.5 : Good with partitioning
+   > 0.5 : Affinity with organic phase
 
 {'='*60}
 """
@@ -480,20 +675,20 @@ class KDPredictorGUI:
 
 📊 Results of search:
    Compositions tested: {total_combinations}
-   Compositions with -1 < KD < 1: {valid_combinations}
+   Compositions with -0.5 < KD < 0.5: {valid_combinations}
 
 ❌ No system found
    No composition for any system gave a satisfactory result
 
 💡 SUGGESTIONS:
    • Try another compound
-   • Manually select compositions and try to find a system near -1 or 1
+   • Manually select compositions and try to find a system near -0.5 or 0.5
    • Verify SMILES
 
 {'='*60}
 """
             self.display_in_results(result_text)
-            self.update_status_bar(f"Search finished - No result for -1 < Log KD < 1")
+            self.update_status_bar(f"Search finished - No result for -0.5 < Log KD < 0.5")
             return
         
         # Trier les résultats par KD (croissant)
@@ -509,7 +704,7 @@ class KDPredictorGUI:
 
 📊 Results of search:
    Compositions tested: {total_combinations}
-   Compositions with -1 < log KD < 1: {valid_combinations}
+   Compositions with -0.5 < log KD < 0.5: {valid_combinations}
 
 🎯 Optimal systems (sorted by log KD):
 """
@@ -533,7 +728,7 @@ class KDPredictorGUI:
         result_text += f"""
 {'='*60}
 💡 INTERPRÉTATION:
-   • Log KD between -1 et 1 indicates a good partitioning
+   • Log KD between -0.5 et 0.5 indicates a good partitioning
    • Negative values indicate a preference for the aqueous phase
    • Positive values indicate a preference for the organic phase
 
@@ -545,7 +740,7 @@ class KDPredictorGUI:
 """
         
         self.display_in_results(result_text)
-        self.update_status_bar(f"Search finished - {valid_combinations} systems found with -1 < log KD < 1")
+        self.update_status_bar(f"Search finished - {valid_combinations} systems found with -0.5 < log KD < 0.5")
     
     def display_scan_error(self, error_msg=""):
         """Affiche une erreur de scan"""
@@ -586,7 +781,7 @@ Verify that:
     def reset_buttons(self):
         """Réactive les boutons"""
         self.predict_button.config(state='normal', text="🎯 Prediction for selected system and composition", bg='#27ae60')
-        self.scan_button.config(state='normal', text="🔍 Search optimal compositions for CPC (-1 < log KD < 1)", bg='#8e44ad')
+        self.scan_button.config(state='normal', text="🔍 Search optimal compositions for CPC (-0.5 < log KD < 0.5)", bg='#8e44ad')
     
     def reset_interface(self):
         """Réinitialise l'interface"""
@@ -595,13 +790,25 @@ Verify that:
         self.results_text.config(state='normal')
         self.results_text.delete(1.0, tk.END)
         self.results_text.config(state='disabled')
+        
+        # Réinitialiser l'affichage de la structure
+        self.mol_canvas.delete("all")
+        self.mol_canvas.create_text(190, 190, 
+                                   text="Enter SMILES to\ndisplay structure", 
+                                   font=('Arial', 12), 
+                                   fill='gray', 
+                                   justify='center')
+        self.mol_info_label.config(text="No molecule to display")
+        self.mol_weight_label.config(text="Molecular Weight: -")
+        self.mol_formula_label.config(text="Formula: -")
+        
         self.update_status_bar("Interface réinitialisée")
     
     def update_status_bar(self, message):
         """Met à jour la barre de statut"""
         self.status_bar.config(text=f" {message}")
 
-# Classe KDPredictor (identique)
+# Classe KDPredictor (identique - pas de modifications)
 class KDPredictor:
     def __init__(self, fingerprint_bits=2048, fingerprint_radius=2):
         self.fingerprint_bits = fingerprint_bits
