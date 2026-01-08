@@ -1,4 +1,5 @@
-!!The results are all in log KD not KD!!
+Please run Predict.py to start the program
+
 Libraries needed: tkinter pandas numpy tensorflow sklearn rdkit joblib threading datetime matplotlib traceback PIL io subprocess sys
 Please type the following command in your terminal to check if all python libraries are installed:
 
