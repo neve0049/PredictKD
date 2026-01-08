@@ -13,6 +13,8 @@ import joblib
 import threading
 from datetime import datetime
 import io
+from rdkit import RDLogger
+RDLogger.DisableLog('rdApp.*')  # Désactive tous les logs RDKit
 
 class KDPredictorGUI:
     def __init__(self, root):
@@ -33,6 +35,10 @@ class KDPredictorGUI:
         # Variable pour l'image de la molécule
         self.molecule_image = None
         self.current_smiles = ""
+        
+        # Variable pour le mode de tri
+        self.is_ascending = False  # Par défaut en mode Descending
+        self.sort_mode_var = tk.StringVar(value="Descending")
         
         self.setup_ui()
         self.load_model_async()
@@ -245,9 +251,23 @@ class KDPredictorGUI:
         )
         self.smiles_status.pack(anchor='w')
         
-        # Boutons d'action
+        # Boutons d'action avec bouton de mode de tri
         button_frame = tk.Frame(config_frame, bg='#f0f0f0')
         button_frame.pack(fill='x', pady=10)
+        
+        # Bouton de mode de tri
+        self.sort_mode_button = tk.Button(
+            button_frame,
+            text="Descending 🔽",
+            command=self.toggle_sort_mode,
+            font=('Arial', 10),
+            bg='#95a5a6',
+            fg='white',
+            relief='raised',
+            bd=2,
+            width=15
+        )
+        self.sort_mode_button.pack(side='left', padx=(0, 10))
         
         # Bouton de prédiction simple
         self.predict_button = tk.Button(
@@ -281,6 +301,21 @@ class KDPredictorGUI:
         )
         self.scan_button.pack(side='left', padx=(0, 10))
         
+        # Bouton de chromatogramme
+        self.chromatogram_button = tk.Button(
+            button_frame,
+            text="📊 Simulate Chromatogram Tool",
+            command=self.launch_chromatogram_tool,
+            font=('Arial', 10, 'bold'),
+            bg='#16a085',
+            fg='white',
+            relief='raised',
+            bd=2,
+            width=25,
+            height=1
+        )
+        self.chromatogram_button.pack(side='left', padx=(0, 10))
+
         # Bouton de réinitialisation
         self.reset_button = tk.Button(
             button_frame,
@@ -328,6 +363,34 @@ class KDPredictorGUI:
             font=('Arial', 9)
         )
         self.status_bar.pack(side='bottom', fill='x')
+    
+    def toggle_sort_mode(self):
+        """Bascule entre les modes Descending et Ascending"""
+        self.is_ascending = not self.is_ascending
+        
+        if self.is_ascending:
+            self.sort_mode_var.set("Ascending")
+            self.sort_mode_button.config(text="Ascending 🔼", bg='#3498db')
+        else:
+            self.sort_mode_var.set("Descending")
+            self.sort_mode_button.config(text="Descending 🔽", bg='#95a5a6')
+        
+        self.update_status_bar(f"Sort mode: {self.sort_mode_var.get()}")
+        
+        # Si nous avons des résultats affichés, les mettre à jour avec le nouveau mode
+        current_text = self.results_text.get(1.0, tk.END).strip()
+        if current_text and "PREDICTION" in current_text or "Search completed" in current_text:
+            # Recalculer avec le nouveau mode
+            smiles = self.smiles_var.get().strip()
+            if smiles:
+                # Relancer la dernière opération
+                if "Search completed" in current_text:
+                    self.launch_complete_scan()
+                elif "PREDICTION" in current_text:
+                    solvent = self.solvent_var.get()
+                    composition = self.composition_var.get()
+                    if solvent and composition:
+                        self.launch_prediction()
     
     def validate_and_display_smiles(self, event=None):
         """Valide le SMILES et affiche la structure"""
@@ -602,13 +665,18 @@ class KDPredictorGUI:
                     # Faire la prédiction pour chaque combinaison
                     prediction = self.predictor.predict(smiles, solvent, composition)
                     
-                    if prediction is not None and -0.5 <= prediction <= 0.5:
-                        results.append({
-                            'solvent': solvent,
-                            'composition': composition,
-                            'kd': prediction
-                        })
-                        valid_combinations += 1
+                    if prediction is not None:
+                        # Appliquer la conversion si en mode ascending
+                        if self.is_ascending:
+                            prediction = np.log10(1 / (10**prediction))
+                        
+                        if -0.5 <= prediction <= 0.5:
+                            results.append({
+                                'solvent': solvent,
+                                'composition': composition,
+                                'kd': prediction
+                            })
+                            valid_combinations += 1
             
             self.root.after(0, lambda: self.display_scan_results(
                 smiles, results, total_combinations, valid_combinations
@@ -622,7 +690,15 @@ class KDPredictorGUI:
     
     def display_prediction_result(self, smiles, solvent, composition, prediction):
         """Affiche le résultat de la prédiction simple"""
-        # Interprétation
+        # Appliquer la conversion si en mode ascending
+        original_prediction = prediction
+        if self.is_ascending:
+            prediction = np.log10(1 / (10**prediction))
+        
+        # Calculer KD = 10^(log KD)
+        kd_value = 10**prediction
+        
+        # Interpretation
         if prediction < -0.5:
             interpretation = "Affinity with aqueous phase"
             color = "#e74c3c"
@@ -647,6 +723,7 @@ class KDPredictorGUI:
 
 📊 Results:
    Predicted log KD: {prediction:.4f}
+   KD = {kd_value:.4f}
 
 💡 Interpretation:
    {interpretation}
@@ -660,7 +737,7 @@ class KDPredictorGUI:
 """
         
         self.display_in_results(result_text, interpretation, color)
-        self.update_status_bar(f"Prédiction terminée - KD: {prediction:.4f}")
+        self.update_status_bar(f"Prediction completed - log KD: {prediction:.4f} | KD: {kd_value:.4f} | Mode: {self.sort_mode_var.get()}")
     
     def display_scan_results(self, smiles, results, total_combinations, valid_combinations):
         """Affiche les résultats du scan complet"""
@@ -688,7 +765,7 @@ class KDPredictorGUI:
 {'='*60}
 """
             self.display_in_results(result_text)
-            self.update_status_bar(f"Search finished - No result for -0.5 < Log KD < 0.5")
+            self.update_status_bar(f"Search finished - No result for -0.5 < Log KD < 0.5 | Mode: {self.sort_mode_var.get()}")
             return
         
         # Trier les résultats par KD (croissant)
@@ -705,48 +782,52 @@ class KDPredictorGUI:
 📊 Results of search:
    Compositions tested: {total_combinations}
    Compositions with -0.5 < log KD < 0.5: {valid_combinations}
+   Sort mode: {self.sort_mode_var.get()}
 
 🎯 Optimal systems (sorted by log KD):
 """
         
         # Ajouter chaque résultat
         for i, result in enumerate(results, 1):
-            kd = result['kd']
+            kd_log = result['kd']
+            kd_value = 10**kd_log
+            
             # Color code basé sur la valeur de log KD
-            if kd < -0.5:
+            if kd_log < -0.5:
                 kd_color = "🟢"  # Très bas
-            elif kd < 0:
+            elif kd_log < 0:
                 kd_color = "🟡"  # Bas
-            elif kd < 0.5:
+            elif kd_log < 0.5:
                 kd_color = "🟠"  # Modéré
             else:
                 kd_color = "🔴"  # Élevé mais dans la plage
             
             result_text += f"\n{kd_color} {i:2d}. {result['solvent']} + {result['composition']}"
-            result_text += f"\n     KD = {kd:.4f}\n"
+            result_text += f"\n     log KD = {kd_log:.4f} | KD = {kd_value:.4f}\n"
         
         result_text += f"""
 {'='*60}
-💡 INTERPRÉTATION:
+💡 INTERPRETATION:
    • Log KD between -0.5 et 0.5 indicates a good partitioning
    • Negative values indicate a preference for the aqueous phase
    • Positive values indicate a preference for the organic phase
+   • KD = 10^(log KD) represents the actual partition coefficient
 
 🎯 RECOMMANDATIONS:
-   • Lower system: {results[0]['solvent']} + {results[0]['composition']} (KD = {results[0]['kd']:.4f})
-   • Système le plus haut: {results[-1]['solvent']} + {results[-1]['composition']} (KD = {results[-1]['kd']:.4f})
+   • Lowest system: {results[0]['solvent']} + {results[0]['composition']} (log KD = {results[0]['kd']:.4f}, KD = {10**results[0]['kd']:.4f})
+   • Highest: {results[-1]['solvent']} + {results[-1]['composition']} (log KD = {results[-1]['kd']:.4f}, KD = {10**results[-1]['kd']:.4f})
 
 {'='*60}
 """
         
         self.display_in_results(result_text)
-        self.update_status_bar(f"Search finished - {valid_combinations} systems found with -0.5 < log KD < 0.5")
+        self.update_status_bar(f"Search finished - {valid_combinations} systems found | Mode: {self.sort_mode_var.get()}")
     
     def display_scan_error(self, error_msg=""):
         """Affiche une erreur de scan"""
         error_text = f"""
 {'='*60}
-❌ ERREUR DE SCAN - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+❌ ERROR DURING SCAN - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 {'='*60}
 
 Can't compute the complete search.
@@ -783,6 +864,28 @@ Verify that:
         self.predict_button.config(state='normal', text="🎯 Prediction for selected system and composition", bg='#27ae60')
         self.scan_button.config(state='normal', text="🔍 Search optimal compositions for CPC (-0.5 < log KD < 0.5)", bg='#8e44ad')
     
+    def launch_chromatogram_tool(self):
+        """Lance simplement le programme ChromVisu.py"""
+        try:
+            import subprocess
+            import sys
+        
+            # Lance ChromVisu.py dans une nouvelle fenêtre
+            if sys.platform == "win32":
+            # Pour Windows
+                subprocess.Popen([sys.executable, "ChromVisu.py"], 
+                    creationflags=subprocess.CREATE_NEW_CONSOLE)
+            else:
+            # Pour Linux/Mac
+                subprocess.Popen([sys.executable, "ChromVisu.py"])
+        
+            self.update_status_bar("Chromatogram Tool launched")
+        
+        except Exception as e:
+            messagebox.showerror("Error", 
+                f"Cannot launch chromatogram tool:\n{str(e)}\n\n"
+                f"Make sure 'ChromVisu.py' is in the same folder.")
+            
     def reset_interface(self):
         """Réinitialise l'interface"""
         self.smiles_var.set("")
