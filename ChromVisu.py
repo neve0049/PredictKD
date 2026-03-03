@@ -241,7 +241,7 @@ class ChromatogramWindow:
 class ChromatogramVisualizer:
     def __init__(self, root):
         self.root = root
-        self.root.title("Visualisation du chromatogramme")
+        self.root.title("Chromatogram visualization")
         self.root.geometry("1400x800")
         
         # Style
@@ -265,7 +265,7 @@ class ChromatogramVisualizer:
         title_label.grid(row=0, column=0, columnspan=2, pady=(0, 20))
         
         # Section des paramètres
-        params_frame = tk.LabelFrame(main_frame, text="Colonne parameters", 
+        params_frame = tk.LabelFrame(main_frame, text="Column parameters", 
                                     font=('Arial', 12, 'bold'), bg='#f5f5f5', padx=15, pady=15)
         params_frame.grid(row=1, column=0, sticky='nw', padx=(0, 20), pady=(0, 20))
         
@@ -349,7 +349,7 @@ class ChromatogramVisualizer:
         self.table_scrollbar.pack(side='right', fill='y')
         
         # Cadre pour les résultats
-        self.results_frame = tk.LabelFrame(main_frame, text="Résultats des calculs", 
+        self.results_frame = tk.LabelFrame(main_frame, text="Calculation results", 
                                           font=('Arial', 12, 'bold'), bg='#f5f5f5', padx=15, pady=15)
         self.results_frame.grid(row=2, column=0, columnspan=2, sticky='ew', pady=(20, 0))
         
@@ -412,11 +412,11 @@ class ChromatogramVisualizer:
                 
                 return True
             else:
-                messagebox.showerror("Erreur", "SMILES invalide - impossible de générer la molécule")
+                messagebox.showerror("Error", "Invalid SMILES - Cannot generate molecule")
                 return False
                 
         except Exception as e:
-            messagebox.showerror("Erreur", f"Erreur lors de l'ajout du composé: {str(e)}")
+            messagebox.showerror("Error", f"Error occured when adding molecule: {str(e)}")
             return False
     
     def update_table_display(self):
@@ -494,20 +494,20 @@ class ChromatogramVisualizer:
             general_frame = tk.Frame(self.results_scrollable_frame, bg='white')
             general_frame.pack(fill='x', padx=10, pady=10)
             
-            tk.Label(general_frame, text="Paramètres généraux:", 
+            tk.Label(general_frame, text="General parameters:", 
                     font=('Arial', 11, 'bold'), bg='white').grid(row=0, column=0, sticky='w')
             
-            tk.Label(general_frame, text=f"Volume de la phase mobile Vm = Vcol - Vstat = {Vcol:.2f} - {Vstat:.2f} = {Vm:.2f} mL", 
+            tk.Label(general_frame, text=f"Mobile phase volume Vm = Vcol - Vstat = {Vcol:.2f} - {Vstat:.2f} = {Vm:.2f} mL", 
                     bg='white').grid(row=1, column=0, sticky='w', pady=2)
             
-            tk.Label(general_frame, text=f"Débit Vflow = {Vflow:.2f} mL/min", 
+            tk.Label(general_frame, text=f"Flow Vflow = {Vflow:.2f} mL/min", 
                     bg='white').grid(row=2, column=0, sticky='w', pady=2)
             
-            tk.Label(general_frame, text=f"Volume boucle d'injection Voff = {Voff:.2f} mL", 
+            tk.Label(general_frame, text=f"Sample loop volume Voff = {Voff:.2f} mL", 
                     bg='white').grid(row=3, column=0, sticky='w', pady=2)
             
             # AJOUT: Afficher le calcul du dead volume
-            tk.Label(general_frame, text=f"Temps dead volume Tdv = (Vm + Voff) / Vflow = ({Vm:.2f} + {Voff:.2f}) / {Vflow:.2f} = {Tdv:.2f} min", 
+            tk.Label(general_frame, text=f"Dead volume (min) Tdv = (Vm + Voff) / Vflow = ({Vm:.2f} + {Voff:.2f}) / {Vflow:.2f} = {Tdv:.2f} min", 
                     bg='white', fg='red', font=('Arial', 10, 'bold')).grid(row=4, column=0, sticky='w', pady=2)
             
             tk.Label(general_frame, text=f"Wmin = Vflow * 1 = {Vflow:.2f} * 1 = {Wmin:.2f} mL/min", 
@@ -526,7 +526,7 @@ class ChromatogramVisualizer:
                 compounds_frame = tk.Frame(self.results_scrollable_frame, bg='white')
                 compounds_frame.pack(fill='x', padx=10, pady=10)
                 
-                tk.Label(compounds_frame, text="Distributions de temps d'élution:", 
+                tk.Label(compounds_frame, text="Predicted chromatogram:", 
                         font=('Arial', 11, 'bold'), bg='white').grid(row=0, column=0, sticky='w', columnspan=2)
                 
                 # AJOUT: Avertissement si des pics sont avant le dead volume
@@ -548,7 +548,7 @@ class ChromatogramVisualizer:
                         warning_frame = tk.Frame(self.results_scrollable_frame, bg='yellow', padx=10, pady=10)
                         warning_frame.pack(fill='x', padx=10, pady=5)
                         tk.Label(warning_frame, 
-                                text=f"ATTENTION: Le composé {compound['letter']} a un temps de rétention ({t_retention:.2f} min) inférieur au dead volume ({Tdv:.2f} min)!",
+                                text=f"Warning: Compound {compound['letter']} has a retention time ({t_retention:.2f} min) lower than dead volume ({Tdv:.2f} min)!",
                                 font=('Arial', 10, 'bold'), bg='yellow').pack()
                         warning_shown = True
                     
@@ -573,11 +573,11 @@ class ChromatogramVisualizer:
                     
                     # Afficher les résultats pour ce composé
                     tk.Label(compounds_frame, 
-                            text=f"{compound['letter']} ({compound['nom']}): Distribution Gaussienne", 
+                            text=f"{compound['letter']} ({compound['nom']}): Gaussian distribution", 
                             font=('Arial', 10, 'bold'), bg='white').grid(row=row_counter, column=0, sticky='w', pady=2)
                     
                     tk.Label(compounds_frame, 
-                            text=f"  Paramètres: Vr = {Vr:.2f} mL, t = {t_retention:.2f} min", 
+                            text=f"  Parameters: Vr = {Vr:.2f} mL, t = {t_retention:.2f} min", 
                             bg='white').grid(row=row_counter+1, column=0, sticky='w', padx=20)
                     
                     # AJOUT: Comparaison avec le dead volume
@@ -592,7 +592,7 @@ class ChromatogramVisualizer:
                                 bg='white', fg='green', font=('Arial', 9)).grid(row=row_counter+2, column=0, sticky='w', padx=20)
                     
                     tk.Label(compounds_frame, 
-                            text="  Distribution Nmax (faible efficacité):", 
+                            text="  Distribution Nmax (Lower efficiency):", 
                             bg='white', font=('Arial', 9, 'bold')).grid(row=row_counter+3, column=0, sticky='w', padx=20)
                     
                     tk.Label(compounds_frame, 
@@ -600,11 +600,11 @@ class ChromatogramVisualizer:
                             bg='white', font=('Arial', 9)).grid(row=row_counter+4, column=0, sticky='w', padx=40)
                     
                     tk.Label(compounds_frame, 
-                            text=f"    Hauteur PDF: 1/(σ√(2π)) = {height_max:.3f}", 
+                            text=f"    Height PDF: 1/(σ√(2π)) = {height_max:.3f}", 
                             bg='white', font=('Arial', 9)).grid(row=row_counter+5, column=0, sticky='w', padx=40)
                     
                     tk.Label(compounds_frame, 
-                            text="  Distribution Nmin (haute efficacité):", 
+                            text="  Distribution Nmin (Higher efficiency):", 
                             bg='white', font=('Arial', 9, 'bold')).grid(row=row_counter+6, column=0, sticky='w', padx=20)
                     
                     tk.Label(compounds_frame, 
@@ -612,15 +612,15 @@ class ChromatogramVisualizer:
                             bg='white', font=('Arial', 9)).grid(row=row_counter+7, column=0, sticky='w', padx=40)
                     
                     tk.Label(compounds_frame, 
-                            text=f"    Hauteur PDF: 1/(σ√(2π)) = {height_min:.3f}", 
+                            text=f"    Height PDF: 1/(σ√(2π)) = {height_min:.3f}", 
                             bg='white', font=('Arial', 9)).grid(row=row_counter+8, column=0, sticky='w', padx=40)
                     
                     tk.Label(compounds_frame, 
-                            text=f"  Facteur d'élargissement: σ_max/σ_min = {sigma_max_t/sigma_min_t:.1f}", 
+                            text=f"  Peak widening factor: σ_max/σ_min = {sigma_max_t/sigma_min_t:.1f}", 
                             bg='white', font=('Arial', 9)).grid(row=row_counter+9, column=0, sticky='w', padx=20)
                     
                     tk.Label(compounds_frame, 
-                            text=f"  Facteur hauteur: h_min/h_max = {height_min/height_max:.1f}", 
+                            text=f"  Peak height factor: h_min/h_max = {height_min/height_max:.1f}", 
                             bg='white', font=('Arial', 9)).grid(row=row_counter+10, column=0, sticky='w', padx=20)
                     
                     # Stocker les données pour le chromatogramme
@@ -648,7 +648,7 @@ class ChromatogramVisualizer:
                     selectivity_frame = tk.Frame(self.results_scrollable_frame, bg='white')
                     selectivity_frame.pack(fill='x', padx=10, pady=10)
                     
-                    tk.Label(selectivity_frame, text="Sélectivité (α):", 
+                    tk.Label(selectivity_frame, text="Selectivity (α):", 
                             font=('Arial', 11, 'bold'), bg='white').grid(row=0, column=0, sticky='w')
                     
                     row_num = 1
@@ -683,9 +683,9 @@ class ChromatogramVisualizer:
                         bg='white', font=('Arial', 10, 'italic')).pack(padx=10, pady=10)
             
         except ValueError:
-            messagebox.showerror("Erreur", "Veuillez entrer des valeurs numériques valides pour tous les paramètres.")
+            messagebox.showerror("Error", "Please only enter numerical values for column parameters.")
         except Exception as e:
-            messagebox.showerror("Erreur", f"Une erreur est survenue: {str(e)}")
+            messagebox.showerror("Error", f"An error occurred: {str(e)}")
 
 def main():
     root = tk.Tk()
